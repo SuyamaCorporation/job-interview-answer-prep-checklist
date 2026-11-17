@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>就職面接 回答準備チェックリスト</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .fade-in { animation: fadeIn 0.15s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:translateY(0); } }
+  </style>
+</head>
+<body class="bg-sky-50 min-h-screen font-sans">
+
+<header class="bg-sky-700 text-white py-4 px-6 shadow-md">
+  <h1 class="text-xl font-bold">🎯 就職面接 回答準備チェックリスト</h1>
+  <p class="text-sky-200 text-sm mt-1">面接頻出質問への回答を準備し、本番に備えましょう</p>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-5 space-y-5">
+
+  <!-- プログレスバー -->
+  <section class="bg-white rounded-xl shadow p-5" aria-label="準備進捗">
+    <div class="flex justify-between items-center mb-2">
+      <h2 class="text-sm font-bold text-sky-800">回答準備の進捗</h2>
+      <span id="progressLabel" class="text-sm font-bold text-sky-700" aria-live="polite">0 / 8 完了</span>
+    </div>
+    <div class="w-full bg-sky-100 rounded-full h-4 overflow-hidden" role="progressbar" aria-valuemin="0" aria-valuemax="8" aria-valuenow="0" id="progressBar">
+      <div id="progressFill" class="h-full bg-sky-500 rounded-full transition-all duration-500" style="width:0%"></div>
+    </div>
+    <p id="progressMessage" class="text-xs text-gray-500 mt-2">準備を始めましょう！</p>
+  </section>
+
+  <!-- 質問セクション -->
+  <section aria-label="面接質問リスト">
+    <h2 class="text-sm font-bold text-sky-800 mb-3">面接頻出質問 (8問)</h2>
+    <div id="questionList" class="space-y-4"></div>
+  </section>
+
+  <!-- 本番前チェックリスト -->
+  <section class="bg-white rounded-xl shadow p-5" aria-label="本番直前チェックリスト">
+    <h2 class="text-base font-bold text-sky-800 mb-3 border-b border-sky-100 pb-2">✅ 本番直前チェックリスト</h2>
+    <div id="preDayList" class="space-y-2"></div>
+    <div id="preDayProgress" class="mt-3 text-xs text-gray-500 text-right"></div>
+  </section>
+
+  <div class="flex gap-3">
+    <button id="clearAllBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium px-5 py-2 rounded-lg text-sm transition" aria-label="全回答をクリア">クリア</button>
+  </div>
+
+</main>
+
+<script>
+const STORAGE_KEY = 'interview_prep_v1';
+
+const QUESTIONS = [
+  {
+    id: 'motivation',
+    label: '志望動機',
+    tip: '【STAR法のヒント】企業の何に惹かれたか → 自分のどの経験・価値観と重なるか → 入社後に実現したいこと'
+  },
+  {
+    id: 'selfpr',
+    label: '自己PR',
+    tip: '【構成ヒント】① 一言で強みを言う → ② 裏付けエピソード（具体的数字・状況） → ③ 入社後への活かし方'
+  },
+  {
+    id: 'strength',
+    label: '強み',
+    tip: '【ポイント】抽象的な言葉（「粘り強さ」）＋その根拠となる具体的エピソードをセットで準備する'
+  },
+  {
+    id: 'weakness',
+    label: '弱み',
+    tip: '【ポイント】正直に弱みを伝えつつ、克服のための行動・工夫を必ず添える。業務上致命的な弱みは避ける'
+  },
+  {
+    id: 'career',
+    label: 'キャリアビジョン',
+    tip: '【構成ヒント】3年後・5年後・10年後でどうなりたいか。企業でのキャリアパスと整合性を持たせる'
+  },
+  {
+    id: 'experience',
+    label: 'これまでの経験',
+    tip: '【STAR法】Situation（状況）→ Task（課題）→ Action（行動）→ Result（結果）の順に整理する'
+  },
+  {
+    id: 'workstyle',
+    label: '働き方・価値観',
+    tip: '【ポイント】チームワークか個人作業か、スピード重視か丁寧さ重視か、など自分のスタイルを具体的に'
+  },
+  {
+    id: 'question',
+    label: '逆質問',
+    tip: '【NG例】給与・休日の質問だけは避ける。【OK例】業務内容の詳細・チームの雰囲気・成長できる点を聞く'
+  }
+];
+
+const PRE_DAY_ITEMS = [
+  '服装・身だしなみの確認（スーツのアイロン・靴磨き）',
+  '面接会場・最寄り駅・所要時間の確認',
+  '証明書類（履歴書・職務経歴書・証明写真）の準備',
+  '企業のWebサイト・IR情報・ニュースの最終確認',
+  'よく聞かれる質問の最終リハーサル（声に出して）',
+  '面接担当者名・部署名の確認',
+  '携帯電話の充電と面接中マナーモード設定',
+  '早めの就寝・体調管理',
+  '当日の朝食・余裕を持った起床時間の設定',
+  '緊急連絡先（企業の電話番号）をメモしておく'
+];
+
+let state = {
+  answers: {},   // {questionId: {draft: string, done: boolean}}
+  preDay: {}     // {idx: boolean}
+};
+
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (d) state = Object.assign(state, d);
+  } catch(e) {}
+  QUESTIONS.forEach(q => {
+    if (!state.answers[q.id]) state.answers[q.id] = {draft: '', done: false};
+  });
+  PRE_DAY_ITEMS.forEach((_, i) => {
+    if (state.preDay[i] === undefined) state.preDay[i] = false;
+  });
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function updateProgress() {
+  const done = QUESTIONS.filter(q => state.answers[q.id]?.done).length;
+  const pct = Math.round((done / QUESTIONS.length) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = `${done} / ${QUESTIONS.length} 完了`;
+  document.getElementById('progressBar').setAttribute('aria-valuenow', done);
+  const msgs = ['準備を始めましょう！', 'いいスタートです！', '順調に進んでいます。', 'もう半分以上！', 'あと少しです！', '準備完了まであと一歩！', 'ほぼ準備完了！', '素晴らしい！もう1問で完了です。', '全問の準備が完了しました！自信を持って臨みましょう。'];
+  document.getElementById('progressMessage').textContent = msgs[done] || msgs[8];
+}
+
+function renderQuestions() {
+  const container = document.getElementById('questionList');
+  container.innerHTML = '';
+  QUESTIONS.forEach((q, qi) => {
+    const a = state.answers[q.id] || {draft: '', done: false};
+    const card = document.createElement('div');
+    card.className = `bg-white rounded-xl shadow p-5 fade-in border-l-4 ${a.done ? 'border-green-400' : 'border-sky-300'}`;
+    card.innerHTML = `
+      <div class="flex items-start justify-between gap-3 mb-2">
+        <label class="flex items-center gap-2 cursor-pointer select-none" for="done_${q.id /* xss-ok: QUESTIONSハードコード配列のid */}">
+          <input type="checkbox" id="done_${q.id /* xss-ok: QUESTIONSハードコード配列のid */}" class="w-5 h-5 accent-green-500 cursor-pointer" ${a.done ? 'checked' : ''} aria-label="${esc(q.label)} 準備完了" data-done="${q.id /* xss-ok: QUESTIONSハードコード配列のid */}" />
+          <span class="text-sm font-bold ${a.done ? 'text-green-700 line-through' : 'text-sky-800'}">${qi+1 /* xss-ok: 整数ループカウンタ */}. ${esc(q.label)}</span>
+        </label>
+        ${a.done ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full whitespace-nowrap">準備完了</span>' : ''}
+      </div>
+      <div class="bg-sky-50 rounded-lg px-3 py-2 mb-3 text-xs text-sky-700">
+        💡 ${esc(q.tip)}
+      </div>
+      <textarea rows="4" placeholder="回答ドラフトを入力..." class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-y" aria-label="${esc(q.label)}の回答ドラフト" data-textarea="${q.id /* xss-ok: QUESTIONSハードコード配列のid */}">${esc(a.draft)}</textarea>
+    `;
+    container.appendChild(card);
+  });
+
+  container.querySelectorAll('input[data-done]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      state.answers[cb.dataset.done].done = cb.checked;
+      save(); renderQuestions(); updateProgress();
+    });
+  });
+
+  container.querySelectorAll('textarea[data-textarea]').forEach(ta => {
+    ta.addEventListener('input', () => {
+      state.answers[ta.dataset.textarea].draft = ta.value;
+      save();
+    });
+  });
+}
+
+function renderPreDay() {
+  const container = document.getElementById('preDayList');
+  container.innerHTML = '';
+  PRE_DAY_ITEMS.forEach((item, idx) => {
+    const checked = state.preDay[idx];
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-3';
+    div.innerHTML = `
+      <input type="checkbox" id="pre_${idx /* xss-ok: 整数ループカウンタ */}" class="w-5 h-5 accent-sky-600 cursor-pointer" ${checked ? 'checked' : ''} aria-label="${esc(item)}" data-preidx="${idx /* xss-ok: 整数ループカウンタ */}" />
+      <label for="pre_${idx /* xss-ok: 整数ループカウンタ */}" class="text-sm cursor-pointer ${checked ? 'line-through text-gray-400' : 'text-gray-700'}">${esc(item)}</label>
+    `;
+    container.appendChild(div);
+  });
+  container.querySelectorAll('input[data-preidx]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      state.preDay[cb.dataset.preidx] = cb.checked;
+      save(); renderPreDay();
+    });
+  });
+  const doneCount = PRE_DAY_ITEMS.filter((_, i) => state.preDay[i]).length;
+  document.getElementById('preDayProgress').textContent = `${doneCount} / ${PRE_DAY_ITEMS.length} 完了`;
+}
+
+// Init
+load();
+renderQuestions();
+renderPreDay();
+updateProgress();
+
+document.getElementById('clearAllBtn').addEventListener('click', () => {
+  if (!confirm('全回答とチェックをクリアしますか？')) return;
+  QUESTIONS.forEach(q => { state.answers[q.id] = {draft: '', done: false}; });
+  PRE_DAY_ITEMS.forEach((_, i) => { state.preDay[i] = false; });
+  save(); renderQuestions(); renderPreDay(); updateProgress();
+});
+</script>
+</body>
+</html>
